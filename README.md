@@ -23,7 +23,7 @@ SoftwareSerial Plugin for ESPEasy mega
  See: https://forum.fhem.de/index.php/topic,86592.msg1109877.html#msg1109877
  
 
-====================================================================================
+============================================================================
  Build with VCode and Platformio on Version Release mega-20201130 without issues.
  Tested with FotoLED to get digital current meter output.
  
