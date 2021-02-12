@@ -23,3 +23,7 @@ SoftwareSerial Plugin for ESPEasy mega
  */
  
  See: https://forum.fhem.de/index.php/topic,86592.msg1109877.html#msg1109877
+ 
+Two small adaptions in _P020_Ser2Net.ino where necessary.
+Line 254: delay(1) -> delay(0)
+Line 14: #define P020_BUFFER_SIZE 128 -> #define P020_BUFFER_SIZE 256
