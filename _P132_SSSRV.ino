@@ -47,7 +47,10 @@ WiFiServer *ser2netServerSW;
 WiFiClient ser2netClientSW;
 
 // old starts from immi/amunra/chons, will be replaced after chosing GPIO pins
-ESPeasySerial *Plugin_132_SS; 
+ESPeasySerial *Plugin_132_SS;
+
+// net_buf_length needed in ten per second as unsinged int
+// uint8_t net_buf_length = 128;
 
 boolean Plugin_132(byte function, struct EventStruct *event, String& string)
 {
@@ -100,16 +103,11 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
       addFormPinSelect(F("Select ESP8266 Rx pin"), F("taskdevicepin1"), Settings.TaskDevicePin1[event->TaskIndex]);
       addFormPinSelect(F("Select ESP8266 Tx pin"), F("taskdevicepin2"), Settings.TaskDevicePin2[event->TaskIndex]);
       
-      //char tmpString[128];
-      //sprintf_P(tmpString, PSTR("<TR><TD>TCP Port:<TD><input type='text' name='plugin_132_port' value='%u'>"), ExtraTaskSettings.TaskDevicePluginConfigLong[0]);
-      //addHtml(tmpString);
-      //sprintf_P(tmpString, PSTR("<TR><TD>Baud Rate (max. 57600):<TD><input type='text' name='plugin_132_baud' value='%u'>"), ExtraTaskSettings.TaskDevicePluginConfigLong[1]);
-      //addHtml(tmpString);   
-
-      //addHtml(F("<TR><TD>Select ESP8266 Rx pin:<TD>"));
-      //addPinSelect(false, "taskdevicepin1", Settings.TaskDevicePin1[event->TaskIndex]);
-      //addHtml(F("<TR><TD>Select ESP8266 Tx pin:<TD>"));
-      //addPinSelect(false, "taskdevicepin2", Settings.TaskDevicePin2[event->TaskIndex]);
+      // Change settings on the fly causes strange behaviour.
+      // Todo: How to fix this?
+      char tmpString[128];
+      sprintf_P(tmpString, "<br> <br> Please reboot the device when settings are changed!");
+      addHtml(tmpString);     
 
       success = true;
       break;
@@ -121,18 +119,7 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
       ExtraTaskSettings.TaskDevicePluginConfigLong[1]     = getFormItemInt(F("p132_baud"));
       ExtraTaskSettings.TaskDevicePluginConfigLong[2]     = getFormItemInt(F("p132_sbuf"));
       ExtraTaskSettings.TaskDevicePluginConfigLong[3]     = getFormItemInt(F("p132_nbuf"));
-      // save values (port, baud rate, TX GPIO, RX GPIO)
-      //String plugin1 = web_server.arg(F("plugin_132_port"));
-      //ExtraTaskSettings.TaskDevicePluginConfigLong[0] = plugin1.toInt();
-      //String plugin2 = web_server.arg(F("plugin_132_baud"));
-      //ExtraTaskSettings.TaskDevicePluginConfigLong[1] = plugin2.toInt();
-      //String plugin3 = web_server.arg(F("taskdevicepin1"));
-      //Settings.TaskDevicePluginConfig[event->TaskIndex][0] = plugin3.toInt(); // from P142
-      //String plugin4 = web_server.arg(F("taskdevicepin2"));
-      //Settings.TaskDevicePluginConfig[event->TaskIndex][1] = plugin4.toInt();
-
-      //SaveTaskSettings(event->TaskIndex);
-
+      
       success = true;
       break;
     }
@@ -149,11 +136,16 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
         
         // Wifi Server
         ser2netServerSW = new WiFiServer(ExtraTaskSettings.TaskDevicePluginConfigLong[0]);           
-        ser2netServerSW->begin();
+        ser2netServerSW->begin();  
 
-        String log =String((ExtraTaskSettings.TaskDevicePluginConfigLong[1]),DEC);
-        addLog(LOG_LEVEL_DEBUG,"Init done");
-        addLog(LOG_LEVEL_DEBUG,log);
+        // Set net_buf_length as defined
+        // net_buf_length = ExtraTaskSettings.TaskDevicePluginConfigLong[3];      
+    
+        addLog(LOG_LEVEL_INFO,"SoftSer: Init done");
+        addLog(LOG_LEVEL_INFO,"Port: " + String((ExtraTaskSettings.TaskDevicePluginConfigLong[0]),DEC));
+        addLog(LOG_LEVEL_INFO,"Baud: " + String((ExtraTaskSettings.TaskDevicePluginConfigLong[1]),DEC));
+        addLog(LOG_LEVEL_INFO,"Buffer Serial: " + String((ExtraTaskSettings.TaskDevicePluginConfigLong[2]),DEC));
+        addLog(LOG_LEVEL_INFO,"Buffer Network: " + String((ExtraTaskSettings.TaskDevicePluginConfigLong[3]),DEC));
         Plugin_132_init = true;
       }
       success = true;
@@ -167,17 +159,12 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
       {        
         size_t bytes_read;
 
-        if (!ser2netClientSW)
-        {          
-          while (Plugin_132_SS->available()) // ESPEasySerial
-          {
-            Plugin_132_SS->read();
-            addLog(LOG_LEVEL_DEBUG_DEV,"SoftSer: ESPserial available");
-          }
-          ser2netClientSW = ser2netServerSW->available();     
-          addLog(LOG_LEVEL_DEBUG_DEV,"SoftSer: Net available");
+        if (ser2netServerSW->hasClient())
+        {
+          if (ser2netClientSW) { ser2netClientSW.stop(); }
+          ser2netClientSW = ser2netServerSW->available();
+          addLog(LOG_LEVEL_ERROR, F("SoftSer: Client connected!"));
         }
-
        
         if (ser2netClientSW.connected())
         {     
@@ -191,8 +178,7 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
             bytes_read = ser2netClientSW.read(net_buf, count);            
             Plugin_132_SS->write(net_buf, bytes_read);
             Plugin_132_SS->flush();
-            if (count == ExtraTaskSettings.TaskDevicePluginConfigLong[3])                                  // if we have a full buffer, drop the last position to stuff
-                                                                          // with string end marker
+            if (count == ExtraTaskSettings.TaskDevicePluginConfigLong[3])  // if we have a full buffer, drop the last position to stuff
             {
               count--;
               addLog(LOG_LEVEL_ERROR, F("SoftSer: Network buffer full!"));
@@ -219,7 +205,7 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
               ser2netClientSW.flush();            
             }
           }
-          else // if we have a full buffer, drop the last position to stuff with string end marker
+          else // if we have a full buffer, drop the last position
           {
             while (Plugin_132_SS->available()) { // read possible remaining data to avoid sending rubbish...
               Plugin_132_SS->read();
