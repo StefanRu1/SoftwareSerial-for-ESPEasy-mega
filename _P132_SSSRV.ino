@@ -88,8 +88,8 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
     case PLUGIN_SET_DEFAULTS: {
       ExtraTaskSettings.TaskDevicePluginConfigLong[0] = 24;     // Port 
       ExtraTaskSettings.TaskDevicePluginConfigLong[1] = 9600;   // Baud 
-      ExtraTaskSettings.TaskDevicePluginConfigLong[2] = 512;    // SerialBuffer
-      ExtraTaskSettings.TaskDevicePluginConfigLong[3] = 512;    // NetBuffer
+      ExtraTaskSettings.TaskDevicePluginConfigLong[2] = 256;    // SerialBuffer
+      ExtraTaskSettings.TaskDevicePluginConfigLong[3] = 256;    // NetBuffer
 
       success = true;
       break;
