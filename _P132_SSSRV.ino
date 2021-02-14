@@ -133,6 +133,8 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
       {
         // Use ESPeasySerial Software Option, port = 6 SW, Pin1, Pin2, inverse = false, buffer = 1024, softwareserail = true
         Plugin_132_SS = new ESPeasySerial(ESPEasySerialPort::software, Settings.TaskDevicePin1[event->TaskIndex], Settings.TaskDevicePin2[event->TaskIndex], false, ExtraTaskSettings.TaskDevicePluginConfigLong[2], true);
+        // for testing tried hardware serial with ESPEasy, but did not work?
+        // Plugin_132_SS = new ESPeasySerial(ESPEasySerialPort::serial0, 3, 1, false, ExtraTaskSettings.TaskDevicePluginConfigLong[2], false);
         Plugin_132_SS->begin(ExtraTaskSettings.TaskDevicePluginConfigLong[1]);
         Plugin_132_SS->setTimeout(200);
         
