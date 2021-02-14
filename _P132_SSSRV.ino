@@ -54,6 +54,7 @@ ESPeasySerial *Plugin_132_SS;
 
 boolean Plugin_132(byte function, struct EventStruct *event, String& string)
 {
+  static byte connectionState = 0;
   boolean success = false;
 
   switch (function) 
@@ -133,6 +134,7 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
         // Use ESPeasySerial Software Option, port = 6 SW, Pin1, Pin2, inverse = false, buffer = 1024, softwareserail = true
         Plugin_132_SS = new ESPeasySerial(ESPEasySerialPort::software, Settings.TaskDevicePin1[event->TaskIndex], Settings.TaskDevicePin2[event->TaskIndex], false, ExtraTaskSettings.TaskDevicePluginConfigLong[2], true);
         Plugin_132_SS->begin(ExtraTaskSettings.TaskDevicePluginConfigLong[1]);
+        Plugin_132_SS->setTimeout(200);
         
         // Wifi Server
         ser2netServerSW = new WiFiServer(ExtraTaskSettings.TaskDevicePluginConfigLong[0]);           
@@ -163,12 +165,16 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
         {
           if (ser2netClientSW) { ser2netClientSW.stop(); }
           ser2netClientSW = ser2netServerSW->available();
+          ser2netClientSW.setNoDelay(true);
+          ser2netClientSW.setTimeout(200);
           addLog(LOG_LEVEL_ERROR, F("SoftSer: Client connected!"));
         }
        
-        if (ser2netClientSW.connected())
-        {     
-           // Net IN     
+        if (Plugin_132_init && ser2netClientSW.connected())
+        {  
+          connectionState = 1;
+
+          // Net IN     
           uint8_t net_buf[ExtraTaskSettings.TaskDevicePluginConfigLong[3]];
           int count = ser2netClientSW.available();
 
@@ -183,7 +189,17 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
               count--;
               addLog(LOG_LEVEL_ERROR, F("SoftSer: Network buffer full!"));
             }
-            net_buf[count]=0;            
+            if (Plugin_132_SS->getWriteError() > 0)
+            {
+              Plugin_132_SS->clearWriteError();
+              addLog(LOG_LEVEL_ERROR, F("SoftSer: Write error!"));
+            }
+            if (Plugin_132_SS->overflow())
+            {              
+              addLog(LOG_LEVEL_ERROR, F("SoftSer: Write Serial overrun!"));
+            }
+
+            net_buf[count]=0;                    
             addLog(LOG_LEVEL_DEBUG,(char*)net_buf);
           }
 
@@ -201,8 +217,11 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
           {
             if (bytes_read > 0) 
             {
-              ser2netClientSW.write((const uint8_t*)serial_buf, bytes_read);
-              ser2netClientSW.flush();            
+              if (Plugin_132_init && ser2netClientSW.connected())
+              {
+               ser2netClientSW.write((const uint8_t*)serial_buf, bytes_read);
+               ser2netClientSW.flush();
+              }  
             }
           }
           else // if we have a full buffer, drop the last position
@@ -210,17 +229,30 @@ boolean Plugin_132(byte function, struct EventStruct *event, String& string)
             while (Plugin_132_SS->available()) { // read possible remaining data to avoid sending rubbish...
               Plugin_132_SS->read();
             }
-            bytes_read--;
+            bytes_read--;            
             addLog(LOG_LEVEL_ERROR, F("SoftSer: Serial buffer full!"));
           }
 
+          if (Plugin_132_SS->hasRxError())
+          {
+            addLog(LOG_LEVEL_ERROR, F("SoftSer: RX error! Resetting..."));
+            Plugin_132_SS->end();
+            Plugin_132_SS->begin(ExtraTaskSettings.TaskDevicePluginConfigLong[1]);
+          }
           serial_buf[bytes_read]=0;          
           addLog(LOG_LEVEL_DEBUG,(char*)serial_buf);
         }
         else 
         {
-          ser2netClientSW.stop();
-          Plugin_132_SS->flush();
+          if (connectionState == 1) // there was a client connected before...
+          {
+            connectionState = 0;
+            ser2netClientSW.setTimeout(CONTROLLER_CLIENTTIMEOUT_DFLT);
+            if (ser2netClientSW) { ser2netClientSW.stop(); }
+            addLog(LOG_LEVEL_ERROR, F("SoftSer: Client disconnected!"));
+            // ser2netClientSW.stop();
+            // Plugin_132_SS->flush();
+          }
         }
         success = true;
       }
